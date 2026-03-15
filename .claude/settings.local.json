@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git branch:*)",
+      "mcp__zhtw-mcp__zhtw",
+      "Bash(git add:*)"
     ]
   }
 }
