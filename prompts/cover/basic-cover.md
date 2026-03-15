@@ -159,8 +159,8 @@ def build_cover_slide(prs, main_title, subtitle, brand_color, accent_color,
 ## 範例
 
 ### 輸入範例
-「封面：2026年曜捷運通公司簡介，主標題『驅動未來物流』，副標題英文 OPL · Oriental Power Logistics，右側深海軍藍色塊」
+「封面：{品牌名稱}簡介，主標題『{品牌特色}』，副標題英文 {品牌名稱} ，右側深海軍藍色塊」
 
 ### 輸出效果
-左側 60% 為貨輪/倉儲照片，右側 40% 深藍色塊帶白色 ORIENTAL POWER 字樣，
-下方大白字「驅動未來物流」，副標題灰白「OPL · Oriental Power Logistics」
+左側 60% 為貨輪/倉儲照片，右側 40% 深藍色塊帶白色 {品牌名稱} 字樣，
+下方大白字「物流」，副標題灰白「{品牌縮寫} · {品牌名稱}」
