@@ -62,7 +62,12 @@ async def list_layouts() -> str:
     }
 
     build_presentation 支援的 layout 值：
-      cover | closing | contents | section_divider | bullet_points | table
+      基礎：cover | closing | contents | section_divider | bullet_points | table
+      大標題/圖：big_title | full_image | data_chart | two_columns
+      左右圖：left_img_right_points | right_img_left_points
+      流程：timeline | process_steps | cycle_diagram | pyramid_funnel
+      視覺：icon_grid | three_columns | image_gallery
+      互動：speaker_profile | quote | video_demo | cta
     """
     result = {}
     for cat in sorted(PROMPTS_DIR.iterdir()):
