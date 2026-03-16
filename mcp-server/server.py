@@ -1,9 +1,11 @@
 """
 nano-banana-slides MCP Server
-提供三個工具：
-  - list_layouts         列出所有可用版型
-  - get_layout_prompt    取得版型的 Prompt 模版內容
-  - build_presentation   根據投影片計劃生成 PPTX 草稿
+提供五個工具：
+  - list_layouts              列出所有可用版型
+  - get_layout_prompt         取得版型的 Prompt 模版內容
+  - analyze_company_template  解構公司 PPTX 模版的風格配色排版
+  - build_presentation        根據投影片計劃生成 PPTX 草稿
+  - generate_slide_images     呼叫 Gemini API 生成簡報格式圖片
 """
 import sys
 import json
@@ -24,13 +26,25 @@ mcp = FastMCP(
 簡報版型 Prompt 庫 + PPTX 生成 MCP 伺服器。
 
 可用工具：
-1. list_layouts         — 列出所有版型分類與檔案名稱
-2. get_layout_prompt    — 取得特定版型的完整 Prompt 模版
-3. build_presentation   — 傳入投影片計劃 JSON，直接生成 .pptx 草稿
+1. list_layouts              — 列出所有版型分類與檔案名稱
+2. get_layout_prompt         — 取得特定版型的完整 Prompt 模版
+3. analyze_company_template  — 解構公司 PPTX 模版，提取風格規格
+4. build_presentation        — 傳入投影片計劃 JSON，生成 .pptx 草稿
+5. generate_slide_images     — 呼叫 Gemini API 生成簡報圖片（需 API key）
 
-典型使用流程：
-  用戶提供簡報需求 → 呼叫 list_layouts 確認可用版型
-  → 規劃 slide_plan JSON → 呼叫 build_presentation 生成 PPTX
+─── 工作流程 A（標準）───────────────────────────────────────────────────────
+  用戶上傳來源資料 → AI 詢問規格需求
+  → list_layouts 挑選適合版型
+  → build_presentation 生成 PPTX
+  → 上傳 Google Slides / NotebookLM 美化
+  → （選用）generate_slide_images 生成圖片版
+
+─── 工作流程 B（公司模版）────────────────────────────────────────────────────
+  用戶上傳公司 PPTX 模版
+  → analyze_company_template 解構風格配色
+  → 結合來源資料與風格規格，挑選對應版型
+  → build_presentation 生成符合公司風格的草稿
+  → 同工作流程 A 後段
 """,
 )
 
@@ -221,6 +235,123 @@ async def build_presentation(
             f"共 {len(plan)} 張投影片\n"
             f"使用版型：{', '.join(s.get('layout','?') for s in plan)}"
         )
+    except Exception as e:
+        import traceback
+        return f"❌ 生成失敗：{e}\n{traceback.format_exc()}"
+
+
+@mcp.tool()
+async def analyze_company_template(pptx_path: str) -> str:
+    """
+    解構公司 PPTX 模版，提取風格配色排版規格，供後續生成符合公司風格的簡報使用。
+
+    Args:
+        pptx_path: PPTX 模版的完整路徑（使用者上傳的公司簡報模版）
+
+    回傳 JSON，包含：
+      color_palette   色彩調色盤（hex list，依出現頻率排序）
+      primary_color   主品牌色
+      accent_color    強調色
+      bg_color        背景色
+      fonts           字型清單
+      heading_size    推測標題字號
+      body_size       推測內文字號
+      layout_map      每頁推測版型（cover/section_divider/bullet_points/table/closing）
+      style_prompt    給 AI 用的風格描述字串（可直接帶入 generate_slide_images）
+
+    使用方式：
+      1. 取得回傳的 style_spec JSON
+      2. 將 style_spec 的色彩/字型應用到 build_presentation 的 slide_plan
+         （修改 brand_color、accent_color 欄位）
+      3. 將 style_spec 傳入 generate_slide_images 的 style_spec 參數
+    """
+    from template_analyzer import analyze_pptx_template
+
+    path = Path(pptx_path).expanduser()
+    if not path.exists():
+        return f"❌ 找不到檔案：{pptx_path}"
+    if path.suffix.lower() != ".pptx":
+        return f"❌ 僅支援 .pptx 格式，收到：{path.suffix}"
+
+    try:
+        spec = analyze_pptx_template(str(path))
+        result = json.dumps(spec, ensure_ascii=False, indent=2)
+        return (
+            f"✅ 模版分析完成：{path.name}\n"
+            f"共 {spec['slide_count']} 張投影片\n"
+            f"主色：{spec['primary_color']}  強調色：{spec['accent_color']}\n"
+            f"字型：{', '.join(spec['fonts'][:3]) if spec['fonts'] else '未偵測到'}\n\n"
+            f"完整規格：\n{result}"
+        )
+    except Exception as e:
+        import traceback
+        return f"❌ 分析失敗：{e}\n{traceback.format_exc()}"
+
+
+@mcp.tool()
+async def generate_slide_images(
+    slide_plan: str,
+    gemini_api_key: str,
+    output_dir: str = ".",
+    style_spec: str = "{}",
+    model: str = "imagen-3.0-generate-001",
+) -> str:
+    """
+    呼叫 Google Gemini / Imagen API，將投影片計劃轉換為簡報格式圖片（PNG）。
+
+    Args:
+        slide_plan:      JSON 字串，與 build_presentation 相同格式的投影片清單
+        gemini_api_key:  Google AI Studio API key（前往 aistudio.google.com 取得）
+        output_dir:      圖片輸出目錄（預設當前目錄）
+        style_spec:      JSON 字串，analyze_company_template 的回傳結果（可省略）
+                         省略時使用預設風格
+        model:           生成模型（預設 imagen-3.0-generate-001）
+                         備援：gemini-2.0-flash-exp
+
+    每張投影片輸出一個 PNG 檔（slide_01.png、slide_02.png...）。
+    圖片可直接上傳 Google Slides / NotebookLM / Canva 進行進一步美化。
+
+    注意：
+      - imagen-3.0 需要 Google AI Studio 帳號（免費配額有限）
+      - 生成品質取決於 prompt 精確度；建議先用 build_presentation 確認結構再生成圖片
+    """
+    from gemini_exporter import generate_slide_images as _gen
+
+    try:
+        plan = json.loads(slide_plan)
+    except json.JSONDecodeError as e:
+        return f"❌ slide_plan JSON 格式錯誤：{e}"
+
+    try:
+        style = json.loads(style_spec) if style_spec.strip() not in ("{}", "") else {}
+    except json.JSONDecodeError:
+        style = {}
+
+    if not gemini_api_key or not gemini_api_key.strip():
+        return "❌ 請提供 Gemini API key（前往 aistudio.google.com 取得）"
+
+    out_dir = Path(output_dir).expanduser()
+    try:
+        paths = _gen(
+            slide_plan=plan,
+            api_key=gemini_api_key.strip(),
+            style_spec=style,
+            output_dir=str(out_dir),
+            model=model,
+        )
+        success = [p for p in paths if not p.startswith("[FAILED]")]
+        failed  = [p for p in paths if p.startswith("[FAILED]")]
+
+        msg = f"✅ 圖片生成完成：{len(success)}/{len(paths)} 張成功\n"
+        msg += f"輸出目錄：{out_dir.resolve()}\n"
+        if success:
+            msg += "\n成功：\n" + "\n".join(f"  {p}" for p in success)
+        if failed:
+            msg += "\n失敗（已輸出 prompt 至 .txt）：\n" + "\n".join(f"  {p}" for p in failed)
+        return msg
+
+    except ImportError as e:
+        return f"❌ {e}\n請執行：pip install google-genai"
     except Exception as e:
         import traceback
         return f"❌ 生成失敗：{e}\n{traceback.format_exc()}"
