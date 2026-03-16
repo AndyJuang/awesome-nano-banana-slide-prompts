@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "nano-banana-slides": {
+      "type": "stdio",
+      "command": "/opt/anaconda3/bin/python3",
+      "args": ["/Users/zhuangzheyun/Documents/nb2slide/mcp-server/server.py"],
+      "env": {}
+    }
+  }
+}

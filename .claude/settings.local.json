@@ -4,7 +4,16 @@
       "Bash(git init:*)",
       "Bash(git branch:*)",
       "mcp__zhtw-mcp__zhtw",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "Bash(git rm:*)"
     ]
   }
 }
