@@ -13,7 +13,7 @@ from pathlib import Path
 # 將 mcp-server 目錄加入 import 路徑
 sys.path.insert(0, str(Path(__file__).parent))
 
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
@@ -35,7 +35,7 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool
+@mcp.tool()
 async def list_layouts() -> str:
     """
     列出所有可用的投影片版型分類與對應的 Prompt 模版檔案。
@@ -59,7 +59,7 @@ async def list_layouts() -> str:
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
-@mcp.tool
+@mcp.tool()
 async def get_layout_prompt(category: str, filename: str) -> str:
     """
     取得特定版型的完整 Prompt 模版（含版面規格、Core Prompt、變數說明、程式碼骨架）。
@@ -84,7 +84,7 @@ async def get_layout_prompt(category: str, filename: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-@mcp.tool
+@mcp.tool()
 async def build_presentation(
     output_filename: str,
     slide_plan: str,
@@ -227,4 +227,4 @@ async def build_presentation(
 
 
 if __name__ == "__main__":
-    asyncio.run(mcp.run_stdio())
+    mcp.run(transport="stdio")
